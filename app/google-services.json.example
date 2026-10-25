@@ -1,0 +1,1 @@
+{ "_comment": "Download the real file from Firebase console > Project settings > Your apps > Android (package com.novaghost.family) and save it as app/google-services.json. It is git-ignored." }

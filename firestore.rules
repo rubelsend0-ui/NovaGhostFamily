@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function room(r) { return get(/databases/$(database)/documents/rooms/$(r)).data; }
+    function isParent(r) { return signedIn() && request.auth.uid in room(r).parents; }
+    function isChild(r)  { return signedIn() && request.auth.uid in room(r).children; }
+    function isMember(r) { return isParent(r) || isChild(r); }
+    function deviceChild(r, d) {
+      return get(/databases/$(database)/documents/rooms/$(r)/devices/$(d)).data.childUid == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.role in ['PARENT', 'CHILD'];
+      allow update: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.role == resource.data.role;   // role is immutable
+      allow delete: if false;
+    }
+
+    // Invitations are created/redeemed ONLY by Cloud Functions (Admin SDK bypasses rules).
+    match /invites/{code} { allow read, write: if false; }
+
+    match /rooms/{r} {
+      allow create: if signedIn()
+                    && request.resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.parents == [request.auth.uid]
+                    && request.resource.data.children == [];
+      allow read: if signedIn()
+                  && (request.auth.uid in resource.data.parents || request.auth.uid in resource.data.children);
+      allow update: if signedIn() && request.auth.uid == resource.data.ownerUid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']);
+      allow delete: if false; // via deleteRoom function (owner check + recursive delete)
+
+      match /devices/{d} {
+        allow read: if isMember(r);
+        allow create, delete: if false; // redeemInvite / unlinkDevice functions
+        allow update: if isChild(r) && resource.data.childUid == request.auth.uid
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['battery', 'charging', 'lastSeen', 'consent']);
+      }
+
+      // FCM tokens: written by the child device, readable by nobody on the client.
+      match /tokens/{d} {
+        allow read: if false;
+        allow write: if isChild(r) && deviceChild(r, d);
+      }
+
+      match /policies/{d} {
+        allow read: if isParent(r) || (isChild(r) && deviceChild(r, d));
+        allow write: if isParent(r);
+      }
+
+      match /usage/{id} {
+        allow read: if isParent(r);
+        allow create, update: if isChild(r) && deviceChild(r, request.resource.data.deviceId);
+        allow delete: if false;
+      }
+
+      match /reminders/{id} {
+        allow read: if isParent(r) || (isChild(r) && resource.data.targetChildUid == request.auth.uid);
+        allow create: if isParent(r) && request.resource.data.createdBy == request.auth.uid
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.message is string
+                      && request.resource.data.message.size() <= 200;
+        allow update: if isChild(r) && resource.data.targetChildUid == request.auth.uid
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deliveredAt'])
+                      && request.resource.data.status == 'delivered';
+        allow delete: if false;
+      }
+
+      match /audit/{id} {
+        allow read: if isParent(r);
+        allow create: if isMember(r) && request.resource.data.actorUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // WebRTC signalling for the optional, consent-based screen view.
+      match /shares/{d} {
+        allow read: if isParent(r) || (isChild(r) && deviceChild(r, d));
+        allow write: if isParent(r) || (isChild(r) && deviceChild(r, d));
+        match /{sub}/{doc} {
+          allow read, write: if isParent(r) || (isChild(r) && deviceChild(r, d));
+        }
+      }
+    }
+  }
+}

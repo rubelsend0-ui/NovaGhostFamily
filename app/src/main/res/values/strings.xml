@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">NOVA GHOST FAMILY</string>
+    <string name="admin_description">Optional: lets NOVA GHOST FAMILY lock this screen during the downtime schedule your family agreed on. You can deactivate it at any time in Settings.</string>
+</resources>
