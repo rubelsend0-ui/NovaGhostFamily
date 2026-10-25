@@ -69,11 +69,22 @@ fun CommandScreen(vm: AppViewModel, s: UiState, nav: (Tab) -> Unit, open: (Strin
     }
     Column(Modifier.fillMaxSize()) {
         Header("Ghost Command", back)
-        OutlinedTextField(q, { q = it }, label = { Text("Type a command…") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+        OutlinedTextField(
+            value = q,
+            onValueChange = { newValue -> q = newValue },
+            label = { Text("Type a command…") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        )
         Page {
-            cmds.filter { it.title.contains(q, ignoreCase = true) }.forEach { c ->
-                GlassCard(Modifier.clickable { c.run() }) { Text(c.title, style = MaterialTheme.typography.titleMedium); Muted(c.hint) }
+            cmds.filter { command ->
+                command.title.contains(q, ignoreCase = true) ||
+                    command.hint.contains(q, ignoreCase = true)
+            }.forEach { command ->
+                GlassCard(Modifier.clickable { command.run() }) {
+                    Text(command.title, style = MaterialTheme.typography.titleMedium)
+                    Muted(command.hint)
+                }
             }
         }
     }
