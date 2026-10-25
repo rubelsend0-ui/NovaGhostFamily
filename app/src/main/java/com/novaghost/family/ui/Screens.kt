@@ -281,7 +281,13 @@ fun AlertsScreen(vm: AppViewModel, s: UiState) {
                     AssistChip(onClick = { msg = p }, label = { Text(p) })
                 }
             }
-            OutlinedTextField(msg, { msg = it.take(200) }, label = { Text("Message") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+            OutlinedTextField(
+                value = msg,
+                onValueChange = { newMessage -> msg = newMessage.take(200) },
+                label = { Text("Message") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2
+            )
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0 to "Now", 15 to "+15 min", 30 to "+30 min", 60 to "+1 h", 120 to "+2 h").forEach { (m, l) ->
                     FilterChip(delay == m, { delay = m }, label = { Text(l) })
